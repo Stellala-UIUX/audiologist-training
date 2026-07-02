@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>聽力師新人訓練場</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+  :root{
+    --gb-darkest:#0f380f;
+    --gb-dark:#306230;
+    --gb-mid:#8bac0f;
+    --gb-light:#9bbc0f;
+    --frame:#1b2a2f;
+    --frame-hi:#2f4650;
+    --accent:#ff8a5c;
+    --accent-2:#37c6c0;
+    --paper:#f4efe1;
+    --danger:#e5533d;
+    --ok:#6fbf73;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 20% 10%, #24343a 0%, transparent 40%),
+      radial-gradient(circle at 80% 90%, #24343a 0%, transparent 40%),
+      var(--frame);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Noto Sans TC', sans-serif;
+    color:var(--paper);
+    padding:24px;
+  }
+  .console{
+    width:min(560px,94vw);
+    background:linear-gradient(180deg,#2b3d43,#1b2a2f);
+    border-radius:22px;
+    padding:18px 18px 26px;
+    box-shadow:
+      0 0 0 2px #0b1416,
+      0 20px 40px -10px rgba(0,0,0,.6),
+      inset 0 2px 0 rgba(255,255,255,.05);
+    position:relative;
+  }
+  .console::before{
+    content:'';
+    position:absolute; left:22px; top:10px;
+    width:60px;height:6px;border-radius:4px;
+    background:repeating-linear-gradient(90deg,var(--accent-2) 0 8px, transparent 8px 14px);
+    opacity:.6;
+  }
+  .brand{
+    font-family:'Press Start 2P', monospace;
+    font-size:9px;
+    letter-spacing:1px;
+    text-align:right;
+    color:var(--accent-2);
+    margin-bottom:8px;
+    opacity:.8;
+  }
+  .screen-wrap{
+    background:#0b1416;
+    border-radius:10px;
+    padding:10px;
+    box-shadow:inset 0 0 0 3px #05090a, inset 0 0 18px rgba(0,0,0,.6);
+  }
+  canvas#game{
+    display:block;
+    width:100%;
+    aspect-ratio:16/10;
+    image-rendering:pixelated;
+    image-rendering:crisp-edges;
+    background:var(--gb-light);
+    border-radius:4px;
+  }
+  .hud{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:10px; padding:0 4px;
+    font-family:'Press Start 2P', monospace;
+    font-size:8px;
+    color:var(--paper);
+    opacity:.85;
+  }
+  .hud span.key{color:var(--accent);}
+  .controls-row{
+    display:flex; justify-content:center; gap:10px; margin-top:16px;
+  }
+  .dpad{
+    display:grid;
+    grid-template-columns:repeat(3,34px);
+    grid-template-rows:repeat(3,34px);
+    gap:3px;
+  }
+  .dpad button{
+    background:#3a4c52; border:none; border-radius:6px;
+    color:var(--paper); font-size:14px; cursor:pointer;
+    box-shadow:0 2px 0 #1b2a2f;
+  }
+  .dpad button:active{transform:translateY(2px); box-shadow:none;}
+  .dpad .up{grid-column:2;grid-row:1;}
+  .dpad .left{grid-column:1;grid-row:2;}
+  .dpad .right{grid-column:3;grid-row:2;}
+  .dpad .down{grid-column:2;grid-row:3;}
+  .spacer{width:34px;}
+
+  /* Battle overlay: 獨立於GB小螢幕之外的全螢幕彈窗,確保任何裝置都放得下 */
+  #battle{
+    position:fixed; inset:0;
+    background:rgba(5,10,10,.92);
+    display:none;
+    align-items:center; justify-content:center;
+    padding:16px;
+    z-index:100;
+  }
+  #battle.active{display:flex;}
+  .battle-card{
+    width:min(420px,94vw);
+    max-height:92vh;
+    overflow-y:auto;
+    background:#0b1416;
+    border-radius:14px;
+    box-shadow:0 0 0 3px #1b2a2f, 0 20px 50px rgba(0,0,0,.6);
+    display:flex; flex-direction:column;
+  }
+  .battle-stage{
+    position:relative;
+    background:
+      linear-gradient(180deg, var(--gb-mid) 0%, var(--gb-mid) 55%, var(--gb-dark) 55%, var(--gb-dark) 100%);
+    display:flex; align-items:flex-end; justify-content:space-between;
+    padding:14px 16px 10px;
+    border-radius:14px 14px 0 0;
+    flex-shrink:0;
+  }
+  .fighter{ text-align:center; flex-shrink:0; }
+  .fighter canvas{
+    image-rendering:pixelated; width:76px; height:76px;
+  }
+  .fighter.player canvas{width:88px;height:88px;}
+  .hpbar-box{
+    width:118px; background:var(--paper); border:2px solid #1b2a2f;
+    border-radius:6px; padding:5px 7px; color:#1b2a2f;
+    font-family:'Press Start 2P', monospace; font-size:7px;
+  }
+  .hpbar-label{display:flex; justify-content:space-between; margin-bottom:4px;}
+  .hpbar-track{ height:8px; background:#d8d0bd; border-radius:4px; overflow:hidden; }
+  .hpbar-fill{ height:100%; background:var(--ok); transition:width .35s ease; }
+  .hpbar-fill.enemy{ background:var(--accent); }
+  .hpbar-fill.low{ background:var(--danger); }
+
+  .textbox{
+    background:var(--paper); color:#1b2a2f;
+    margin:8px 10px 0; border-radius:8px;
+    border:3px solid #1b2a2f;
+    padding:10px 12px;
+    flex-shrink:0;
+    font-size:13px; line-height:1.55;
+    min-height:54px;
+  }
+  .movepanel{
+    display:grid; grid-template-columns:1fr 1fr; gap:6px;
+    margin:8px 10px 10px;
+  }
+  .movebtn{
+    background:#233238; color:var(--paper);
+    border:2px solid #3a4c52; border-radius:8px;
+    padding:8px 6px; text-align:left;
+    cursor:pointer; font-size:12px; font-weight:700;
+  }
+  .movebtn small{ display:block; font-weight:400; opacity:.75; font-size:10px; margin-top:2px;}
+  .movebtn:hover{ background:#2f4650; border-color:var(--accent-2);}
+  .movebtn:disabled{opacity:.35; cursor:not-allowed;}
+  .movebtn.manager{ grid-column:1/-1; background:linear-gradient(90deg,#3a2c47,#4a3358); border-color:var(--accent);}
+
+  /* Title / intro / ending overlays */
+  .modal{
+    position:absolute; inset:10px; background:rgba(11,20,22,.96);
+    border-radius:10px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+    padding:20px; gap:14px;
+    overflow-y:auto;
+  }
+  .modal h1{
+    font-family:'Press Start 2P', monospace; font-size:16px; color:var(--accent-2);
+    line-height:1.6; margin:0;
+  }
+  .modal p{ font-size:13px; line-height:1.7; opacity:.9; max-width:380px; margin:0;}
+  .modal .tag{
+    font-family:'Press Start 2P', monospace; font-size:8px; color:var(--accent);
+  }
+  .primary-btn{
+    font-family:'Press Start 2P', monospace; font-size:10px;
+    background:var(--accent); color:#1b2a2f; border:none;
+    padding:12px 20px; border-radius:8px; cursor:pointer;
+    box-shadow:0 3px 0 #b85a37;
+  }
+  .primary-btn:active{transform:translateY(3px); box-shadow:none;}
+  .stage-wrap{ position:relative; }
+  .toast{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    font-family:'Press Start 2P', monospace; font-size:8px;
+    background:var(--accent-2); color:#0b1416; padding:6px 10px; border-radius:6px;
+    opacity:0; transition:opacity .3s; pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  .stat-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:8px;
+    font-size:12px; width:100%; max-width:320px;
+  }
+  .stat-grid div{ background:#182428; border-radius:6px; padding:8px; }
+  .stat-grid b{ display:block; font-size:18px; color:var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div class="console">
+  <div class="brand">HEARING CLINIC ★ TRAINEE SIM</div>
+  <div class="screen-wrap">
+    <div class="stage-wrap">
+      <canvas id="game" width="256" height="160"></canvas>
+      <div class="toast" id="toast"></div>
+
+      <div id="battle">
+        <div class="battle-card">
+          <div class="battle-stage">
+            <div class="fighter">
+              <div class="hpbar-box">
+                <div class="hpbar-label"><span id="enemyName">客人</span><span id="enemyHPText">100</span></div>
+                <div class="hpbar-track"><div class="hpbar-fill enemy" id="enemyHPFill" style="width:100%"></div></div>
+                <div style="margin-top:3px;opacity:.7;">心中疑惑</div>
+              </div>
+              <canvas id="enemySprite" width="24" height="30"></canvas>
+            </div>
+            <div class="fighter player">
+              <canvas id="playerSprite" width="24" height="30"></canvas>
+              <div class="hpbar-box">
+                <div class="hpbar-label"><span>你</span><span id="playerHPText">100</span></div>
+                <div class="hpbar-track"><div class="hpbar-fill" id="playerHPFill" style="width:100%"></div></div>
+                <div style="margin-top:3px;opacity:.7;">客人滿意度</div>
+              </div>
+            </div>
+          </div>
+          <div class="textbox" id="battleText">遭遇客人！</div>
+          <div class="movepanel" id="movePanel"></div>
+        </div>
+      </div>
+
+      <div class="modal" id="titleModal">
+        <div class="tag">PIXEL TRAINING RPG</div>
+        <h1>聽力師<br>新人訓練場</h1>
+        <p>用方向鍵在門市走動，遇到客人就會觸發對戰。<br>
+        選對「話術技能」化解客人的疑惑，守住客人滿意度，<br>
+        完成三位客人的諮詢，成為獨當一面的聽力師！</p>
+        <button class="primary-btn" onclick="startGame()">開始上班 ▶</button>
+      </div>
+
+      <div class="modal" id="endingModal" style="display:none;"></div>
+    </div>
+  </div>
+  <div class="hud">
+    <span>方向鍵移動 <span class="key">↑↓←→</span></span>
+    <span id="progressText">客人 0 / 3</span>
+  </div>
+  <div class="controls-row">
+    <div class="dpad">
+      <button class="up" onclick="tapMove('up')">▲</button>
+      <button class="left" onclick="tapMove('left')">◀</button>
+      <button class="right" onclick="tapMove('right')">▶</button>
+      <button class="down" onclick="tapMove('down')">▼</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 基本設定 ============ */
+const TILE = 16, COLS = 16, ROWS = 10;
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+/* 地圖：0 地板 1 牆/櫃檯 2 門 3 盆栽 4 椅子 */
+const map = [
+ [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,3,0,0,1,1,1,1,1,0,0,3,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,0,4,0,0,0,0,0,0,0,4,0,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,4,0,0,0,0,0,0,0,0,0,4,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,1],
+];
+
+const COLORS = {
+  floor:'#c7e08a', floor2:'#bcd67f', wall:'#3f5b3f', wallTop:'#557a55',
+  counter:'#8a5a3b', counterTop:'#a97a52', door:'#e7d9a3',
+  plantPot:'#a97a52', plantLeaf:'#3f8f4a', chairSeat:'#d98452', chairBack:'#b8663a'
+};
+
+function drawTile(x,y,code){
+  const px = x*TILE, py = y*TILE;
+  const checker = (x+y)%2===0;
+  if(code===0){
+    ctx.fillStyle = checker ? COLORS.floor : COLORS.floor2;
+    ctx.fillRect(px,py,TILE,TILE);
+  } else if(code===1){
+    ctx.fillStyle = COLORS.wallTop;
+    ctx.fillRect(px,py,TILE,6);
+    ctx.fillStyle = COLORS.wall;
+    ctx.fillRect(px,py+6,TILE,TILE-6);
+  } else if(code===2){
+    ctx.fillStyle = COLORS.floor;
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle = COLORS.door;
+    ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
+  } else if(code===3){
+    ctx.fillStyle = checker ? COLORS.floor : COLORS.floor2;
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle = COLORS.plantPot;
+    ctx.fillRect(px+5,py+11,6,4);
+    ctx.fillStyle = COLORS.plantLeaf;
+    ctx.fillRect(px+4,py+4,8,8);
+  } else if(code===4){
+    ctx.fillStyle = checker ? COLORS.floor : COLORS.floor2;
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle = COLORS.chairBack;
+    ctx.fillRect(px+3,py+2,10,4);
+    ctx.fillStyle = COLORS.chairSeat;
+    ctx.fillRect(px+2,py+6,12,8);
+  }
+}
+
+function drawMap(){
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) drawTile(x,y,map[y][x]);
+}
+
+function isWalkable(tx,ty){
+  if(tx<0||ty<0||tx>=COLS||ty>=ROWS) return false;
+  const code = map[ty][tx];
+  return code===0 || code===2 || code===3; // 盆栽踩得到底座旁邊簡化處理
+}
+
+/* ============ 角色像素圖 ============ */
+function pixelChar(canvasEl, palette, grid){
+  const c = canvasEl.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0,0,canvasEl.width,canvasEl.height);
+  for(let r=0;r<grid.length;r++){
+    for(let col=0; col<grid[r].length; col++){
+      const ch = grid[r][col];
+      if(ch==='.') continue;
+      c.fillStyle = palette[ch];
+      c.fillRect(col, r, 1, 1);
+    }
+  }
+}
+
+/* 8 欄 x 12 列 小人像素圖 */
+const PLAYER_GRID = [
+ "..HHHH..",
+ ".HHHHHH.",
+ ".HSSSSH.",
+ ".HSESES.",
+ ".HSSSSH.",
+ "..SMMS..",
+ ".CCCCCC.",
+ "CCCCCCCC",
+ "CCTCCTCC",
+ "CC.CC.CC",
+ "..PP.PP.",
+ "..BB.BB.",
+];
+const PLAYER_PAL = {H:'#2b2b2b',S:'#f2c79a',E:'#1b2a2f',M:'#b5673f',C:'#ffffff',T:'#37c6c0',P:'#2b3d6b',B:'#1b2a2f'};
+
+const PARENT_GRID = [
+ "..HHHH..",
+ ".HHHHHH.",
+ ".HSSSSH.",
+ ".HSESES.",
+ ".HSSSSH.",
+ "..SMMS..",
+ ".DDDDDD.",
+ "DDDDDDDD",
+ "DDDDDDDD",
+ "DD.DD.DD",
+ "..LL.LL.",
+ "..BB.BB.",
+];
+const PARENT_PAL = {H:'#5a3320',S:'#f2c79a',E:'#1b2a2f',M:'#b5673f',D:'#ff8fa3',L:'#3a2c47',B:'#1b2a2f'};
+
+const ELDER_GRID = [
+ "..GGGG..",
+ ".GGGGGG.",
+ ".GSSSSG.",
+ ".GSESES.",
+ ".GSSSSG.",
+ "..SWWS..",
+ ".VVVVVV.",
+ "VVVVVVVV",
+ "VVKVVKVV",
+ "VV.VV.VV",
+ "..LL.LL.",
+ "..BB.BB.",
+];
+const ELDER_PAL = {G:'#cfcfcf',S:'#e8bd8f',E:'#1b2a2f',W:'#8a5a3b',V:'#8a6a4a',K:'#5a3a24',L:'#3a2c47',B:'#1b2a2f'};
+
+const WORKER_GRID = [
+ "..HHHH..",
+ ".HHHHHH.",
+ ".HSSSSH.",
+ ".HSESES.",
+ ".HSSSSH.",
+ "..SMMS..",
+ ".NNNNNN.",
+ "NNRRRRNN",
+ "NNNRNNNN",
+ "NN.NN.NN",
+ "..LL.LL.",
+ "..BB.BB.",
+];
+const WORKER_PAL = {H:'#1b1b1b',S:'#f2c79a',E:'#1b2a2f',M:'#b5673f',N:'#233b5e',R:'#c9433c',L:'#1b1b1b',B:'#1b2a2f'};
+
+const overworldSprites = {}; // 疊加在地圖上的小型版本
+
+/* ============ 玩家 & NPC 狀態 ============ */
+const player = { x:7, y:5, dir:'down', moving:false };
+
+const customers = [
+  {id:'parent', name:'心疼荷包的媽媽', x:3, y:3, range:2, dir:1, grid:PARENT_GRID, pal:PARENT_PAL,
+   weak:'payment', resist:'expert',
+   greeting:'欸...這個真的要花這麼多錢喔？我還要考慮一下...',
+   questions:[
+     '手術加電子耳全部加起來要多少？有沒有辦法分擔一下？',
+     '如果先裝一邊可以嗎？我怕兩邊一次負擔不了。',
+     '聽說健保好像有補助，是真的嗎？'
+   ], done:false},
+  {id:'elder', name:'半信半疑的爺爺', x:12, y:3, range:2, dir:-1, grid:ELDER_GRID, pal:ELDER_PAL,
+   weak:'story', resist:'payment',
+   greeting:'我這把年紀了，裝這個真的有用嗎？別浪費錢。',
+   questions:[
+     '我朋友說他裝了也沒比較好，是不是被騙了？',
+     '這是不是要動很大的手術？我很怕開刀。',
+     '裝了是不是馬上就能聽得跟年輕人一樣？'
+   ], done:false},
+  {id:'worker', name:'行程很滿的上班族', x:7, y:7, range:2, dir:1, grid:WORKER_GRID, pal:WORKER_PAL,
+   weak:'expert', resist:'listen',
+   greeting:'我等一下還要開會，你可以講重點嗎？',
+   questions:[
+     '簡單講，這東西原理是什麼？跟助聽器差在哪？',
+     '手術後多久可以正常上班？要請假很久嗎？',
+     '有沒有推薦的型號？只要能穩定聽清楚就好。'
+   ], done:false},
+];
+
+const MOVES = {
+  listen:  {label:'同理傾聽', desc:'先聽懂客人在怕什麼，再回應。'},
+  expert:  {label:'專業解釋', desc:'用原理和數據說明電子耳如何運作。'},
+  payment: {label:'分期方案', desc:'提供費用選項，降低負擔感。'},
+  story:   {label:'案例分享', desc:'用其他使用者的真實經驗佐證。'},
+};
+
+/* ============ 遊戲主流程 ============ */
+let started = false;
+let inBattle = false;
+let battleState = null;
+let stats = {correct:0, wrong:0, manager:0};
+
+function startGame(){
+  document.getElementById('titleModal').style.display = 'none';
+  started = true;
+  requestAnimationFrame(loop);
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1400);
+}
+
+/* 移動 */
+const heldKeys = new Set();
+window.addEventListener('keydown', e=>{
+  const map2 = {ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
+  if(map2[e.key]) heldKeys.add(map2[e.key]);
+});
+window.addEventListener('keyup', e=>{
+  const map2 = {ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
+  if(map2[e.key]) heldKeys.delete(map2[e.key]);
+});
+function tapMove(dir){ heldKeys.add(dir); setTimeout(()=>heldKeys.delete(dir),120); }
+
+let moveCooldown = 0;
+function updatePlayer(dt){
+  if(inBattle) return;
+  moveCooldown -= dt;
+  if(moveCooldown>0) return;
+  let dx=0, dy=0, dir=player.dir;
+  if(heldKeys.has('up')){dy=-1;dir='up';}
+  else if(heldKeys.has('down')){dy=1;dir='down';}
+  else if(heldKeys.has('left')){dx=-1;dir='left';}
+  else if(heldKeys.has('right')){dx=1;dir='right';}
+  player.dir = dir;
+  if(dx||dy){
+    const nx=player.x+dx, ny=player.y+dy;
+    if(isWalkable(nx,ny)){ player.x=nx; player.y=ny; }
+    moveCooldown = 140;
+    checkEncounter();
+  }
+}
+
+function checkEncounter(){
+  for(const c of customers){
+    if(c.done) continue;
+    if(Math.abs(c.x-player.x)+Math.abs(c.y-player.y) <= 1){
+      openBattle(c);
+      break;
+    }
+  }
+}
+
+/* NPC 巡邏 */
+let npcTimer = 0;
+function updateNPCs(dt){
+  npcTimer += dt;
+  if(npcTimer < 500) return;
+  npcTimer = 0;
+  for(const c of customers){
+    if(c.done || inBattle) continue;
+    const nx = c.x + c.dir;
+    const distFromHome = Math.abs(nx - c._homeX);
+    if(isWalkable(nx,c.y) && distFromHome <= c.range){
+      c.x = nx;
+    } else {
+      c.dir *= -1;
+    }
+  }
+}
+customers.forEach(c=> c._homeX = c.x);
+
+/* ============ 繪製 overworld ============ */
+function drawSpriteSmall(px,py,grid,pal){
+  for(let r=0;r<grid.length;r++){
+    for(let col=0; col<grid[r].length; col++){
+      const ch = grid[r][col];
+      if(ch==='.') continue;
+      ctx.fillStyle = pal[ch];
+      ctx.fillRect(px+col, py+r-4, 1, 1);
+    }
+  }
+}
+
+function drawWorld(){
+  drawMap();
+  // 玩家
+  drawSpriteSmall(player.x*TILE+4, player.y*TILE+2, PLAYER_GRID, PLAYER_PAL);
+  // 客人
+  for(const c of customers){
+    if(c.done) continue;
+    drawSpriteSmall(c.x*TILE+4, c.y*TILE+2, c.grid, c.pal);
+    // 疑惑提示泡泡
+    ctx.fillStyle = '#1b2a2f';
+    ctx.fillRect(c.x*TILE+10, c.y*TILE-6, 6,6);
+    ctx.fillStyle = '#ff8a5c';
+    ctx.fillRect(c.x*TILE+11, c.y*TILE-5, 4,4);
+  }
+}
+
+let lastTime = 0;
+function loop(ts){
+  if(!started) return;
+  const dt = ts-lastTime; lastTime = ts;
+  updatePlayer(dt);
+  updateNPCs(dt);
+  drawWorld();
+  updateProgress();
+  requestAnimationFrame(loop);
+}
+
+function updateProgress(){
+  const done = customers.filter(c=>c.done).length;
+  document.getElementById('progressText').textContent = `客人 ${done} / ${customers.length}`;
+}
+
+/* ============ 戰鬥系統 ============ */
+function openBattle(customer){
+  inBattle = true;
+  battleState = {
+    customer,
+    playerHP: 100,
+    enemyHP: 100,
+    managerUses: 2,
+    qIndex: 0,
+  };
+  document.getElementById('battle').classList.add('active');
+  document.getElementById('enemyName').textContent = customer.name;
+  pixelChar(document.getElementById('enemySprite'), customer.pal, customer.grid);
+  pixelChar(document.getElementById('playerSprite'), PLAYER_PAL, PLAYER_GRID);
+  setBattleText(customer.greeting + '\n\n' + nextQuestion());
+  renderHP();
+  renderMoves();
+}
+
+function nextQuestion(){
+  const c = battleState.customer;
+  const q = c.questions[battleState.qIndex % c.questions.length];
+  battleState.qIndex++;
+  return '「' + q + '」';
+}
+
+function setBattleText(txt){
+  document.getElementById('battleText').innerText = txt;
+}
+
+function renderHP(){
+  const eFill = document.getElementById('enemyHPFill');
+  const pFill = document.getElementById('playerHPFill');
+  eFill.style.width = Math.max(0,battleState.enemyHP)+'%';
+  pFill.style.width = Math.max(0,battleState.playerHP)+'%';
+  eFill.classList.toggle('low', battleState.enemyHP<=30);
+  pFill.classList.toggle('low', battleState.playerHP<=30);
+  document.getElementById('enemyHPText').textContent = Math.max(0,battleState.enemyHP);
+  document.getElementById('playerHPText').textContent = Math.max(0,battleState.playerHP);
+}
+
+function renderMoves(){
+  const panel = document.getElementById('movePanel');
+  panel.innerHTML = '';
+  Object.keys(MOVES).forEach(key=>{
+    const m = MOVES[key];
+    const btn = document.createElement('button');
+    btn.className = 'movebtn';
+    btn.innerHTML = `${m.label}<small>${m.desc}</small>`;
+    btn.onclick = ()=>playerMove(key);
+    panel.appendChild(btn);
+  });
+  const mgr = document.createElement('button');
+  mgr.className = 'movebtn manager';
+  mgr.innerHTML = `📞 問店長<small>快速化解疑慮，剩 ${battleState.managerUses} 次</small>`;
+  mgr.disabled = battleState.managerUses<=0;
+  mgr.onclick = ()=>playerMove('manager');
+  panel.appendChild(mgr);
+}
+
+function playerMove(key){
+  const bs = battleState;
+  const c = bs.customer;
+  let enemyDmg=0, playerDmg=0, feedback='';
+
+  if(key==='manager'){
+    bs.managerUses--;
+    stats.manager++;
+    enemyDmg = 30; playerDmg = 0;
+    feedback = '店長補充了更完整的說明，客人露出理解的表情。';
+  } else if(key===c.weak){
+    enemyDmg = 40; playerDmg = 0;
+    stats.correct++;
+    feedback = weakFeedback(c.id, key);
+  } else if(key===c.resist){
+    enemyDmg = 10; playerDmg = 20;
+    stats.wrong++;
+    feedback = resistFeedback(c.id, key);
+  } else {
+    enemyDmg = 20; playerDmg = 5;
+    feedback = '「原來如此，那我再想想...」（有一點說服力）';
+  }
+
+  bs.enemyHP -= enemyDmg;
+  bs.playerHP -= playerDmg;
+  renderHP();
+
+  if(bs.enemyHP<=0){
+    setBattleText(feedback + '\n\n✅ 客人：「太感謝你了，我決定要諮詢下一步了！」');
+    endBattle(true);
+    return;
+  }
+  if(bs.playerHP<=0){
+    setBattleText(feedback + '\n\n❌ 客人：「算了，我再考慮好了...」');
+    endBattle(false);
+    return;
+  }
+  setBattleText(feedback + '\n\n' + nextQuestion());
+  renderMoves();
+}
+
+function weakFeedback(id,key){
+  const map = {
+    parent_payment: '「原來還能分期啊...那我可以再考慮看看，謝謝你耐心說明。」（疑惑大幅降低！）',
+    elder_story: '「喔？真的有人裝了之後生活變這麼多嗎？那我要考慮一下了。」（疑惑大幅降低！）',
+    worker_expert: '「原理講得很清楚，比助聽器多了語言辨識的處理，這我聽懂了。」（疑惑大幅降低！）',
+  };
+  return map[id+'_'+key] || '客人露出恍然大悟的表情。（疑惑大幅降低！）';
+}
+function resistFeedback(id,key){
+  const map = {
+    parent_expert: '「呃...原理我聽不太懂，我比較在意的是錢的問題。」（客人有點不耐煩，滿意度下降）',
+    elder_payment: '「錢不是重點啦，我是怕根本沒效果。」（客人覺得答非所問，滿意度下降）',
+    worker_listen: '「我知道你想聽我說，但我真的沒時間，麻煩講重點。」（客人更不耐煩，滿意度下降）',
+  };
+  return map[id+'_'+key] || '客人皺了皺眉，似乎不是很滿意這個回答。（滿意度下降）';
+}
+
+function endBattle(win){
+  setTimeout(()=>{
+    document.getElementById('battle').classList.remove('active');
+    inBattle = false;
+    if(win){
+      battleState.customer.done = true;
+      showToast('客人諮詢完成！');
+      const remaining = customers.filter(c=>!c.done).length;
+      if(remaining===0) showEnding();
+    } else {
+      showToast('客人先離開了，練習一下再挑戰吧');
+    }
+    battleState = null;
+  }, 1800);
+}
+
+function showEnding(){
+  const total = stats.correct + stats.wrong;
+  const ratio = total? stats.correct/total : 0;
+  let grade = 'B', comment = '基本掌握技巧，持續累積案例會更上手。';
+  if(ratio>=0.8){ grade='S'; comment='精準抓住每位客人的痛點，是諮詢高手的水準！'; }
+  else if(ratio>=0.5){ grade='A'; comment='大部分應對得宜，再熟悉幾種客人類型會更穩。'; }
+
+  const modal = document.getElementById('endingModal');
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="tag">TRAINING COMPLETE</div>
+    <h1>今日培訓<br>結束！</h1>
+    <div class="stat-grid">
+      <div>評級<b>${grade}</b></div>
+      <div>問店長次數<b>${stats.manager}</b></div>
+      <div>命中弱點<b>${stats.correct}</b></div>
+      <div>踩到地雷<b>${stats.wrong}</b></div>
+    </div>
+    <p>${comment}</p>
+    <button class="primary-btn" onclick="location.reload()">再挑戰一次 ▶</button>
+  `;
+}
+
+/* 初始繪製 */
+drawWorld();
+</script>
+</body>
+</html>
